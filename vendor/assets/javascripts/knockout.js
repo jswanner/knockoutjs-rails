@@ -1,4 +1,4 @@
-// Knockout JavaScript library v1.01
+// Knockout JavaScript library v1.02
 // (c) 2010 Steven Sanderson - http://knockoutjs.com/
 // License: Ms-Pl (http://www.opensource.org/licenses/ms-pl.html)
 
@@ -205,7 +205,7 @@ ko.utils = new (function () {
         stringifyJson: function (data) {
             if ((typeof JSON == "undefined") || (typeof JSON.stringify == "undefined"))
                 throw new Error("Cannot find JSON.stringify(). Some browsers (e.g., IE < 8) don't support it natively, but you can overcome this by adding a script reference to json2.js, downloadable from http://www.json.org/json2.js");
-            return JSON.stringify(data);
+            return JSON.stringify(ko.utils.unwrapObservable(data));
         },
 
         postJson: function (url, data) {
@@ -275,7 +275,7 @@ if (!Function.prototype.bind) {
             return originalFunction.apply(object, args.concat(Array.prototype.slice.call(arguments)));
         }; 
     };
-}﻿/// <reference path="utils.js" />
+}/// <reference path="utils.js" />
 
 ko.memoization = (function () {
     var memos = {};
@@ -420,7 +420,7 @@ ko.isObservable = function (instance) {
 }
 ko.isWriteableObservable = function (instance) {
     return (typeof instance == "function") && instance.__ko_proto__ === ko.observable;
-}﻿/// <reference path="observable.js" />
+}/// <reference path="observable.js" />
 
 ko.observableArray = function (initialValues) {
     var result = new ko.observable(initialValues);
@@ -532,7 +532,7 @@ ko.dependentObservable = function (evaluatorFunction, evaluatorFunctionTarget, o
     evaluate();
     return dependentObservable;
 };
-ko.dependentObservable.__ko_proto__ = ko.observable;﻿/// <reference path="../utils.js" />
+ko.dependentObservable.__ko_proto__ = ko.observable;/// <reference path="../utils.js" />
 
 ko.jsonExpressionRewriting = (function () {
     var restoreCapturedTokensRegex = /\[ko_token_(\d+)\]/g;
@@ -850,7 +850,40 @@ ko.bindingHandlers.uniqueName = {
             element.name = "ko_unique_" + (++ko.bindingHandlers.uniqueName.currentIndex);
     }
 };
-ko.bindingHandlers.uniqueName.currentIndex = 0;/// <reference path="../utils.js" />
+ko.bindingHandlers.uniqueName.currentIndex = 0;
+
+ko.bindingHandlers.checked = {
+    init: function (element, value, allBindings) {
+        if (ko.isWriteableObservable(value)) {
+            var updateHandler;
+            if (element.type == "checkbox")
+                updateHandler = function () { value(this.checked) };
+            else if (element.type == "radio")
+                updateHandler = function () { if (this.checked) value(this.value) };
+            if (updateHandler) {
+                ko.utils.registerEventHandler(element, "change", updateHandler);
+                ko.utils.registerEventHandler(element, "click", updateHandler);
+            }
+        } else if (allBindings._ko_property_writers && allBindings._ko_property_writers.checked) {
+            var updateHandler;
+            if (element.type == "checkbox")
+                updateHandler = function () { allBindings._ko_property_writers.checked(this.checked) };
+            else if (element.type == "radio")
+                updateHandler = function () { if (this.checked) allBindings._ko_property_writers.checked(this.value) };
+            if (updateHandler) {
+                ko.utils.registerEventHandler(element, "change", updateHandler);
+                ko.utils.registerEventHandler(element, "click", updateHandler);
+            }
+        }
+    },
+    update: function (element, value) {
+        value = ko.utils.unwrapObservable(value);
+        if (element.type == "checkbox")
+            element.checked = value;
+        else if (element.type == "radio")
+            element.checked = (element.value == value);
+    }
+};/// <reference path="../utils.js" />
 
 ko.templateEngine = function () {
     this.renderTemplate = function (templateName, data, options) {
@@ -865,7 +898,7 @@ ko.templateEngine = function () {
     this.createJavaScriptEvaluatorBlock = function (script) {
         throw "Override createJavaScriptEvaluatorBlock in your ko.templateEngine subclass";
     }
-};﻿/// <reference path="templateEngine.js" />
+};/// <reference path="templateEngine.js" />
 
 ko.templateRewriting = (function () {
     var memoizeBindingAttributeSyntaxRegex = /(<[a-z]+(\s+(?!data-bind=)[a-z0-9]+(=(\"[^\"]*\"|\'[^\']*\'))?)*\s+)data-bind=(["'])(.*?)\5/g;
@@ -1003,7 +1036,7 @@ ko.templateRewriting = (function () {
             }
         }
     };
-})();﻿/// <reference path="../../utils.js" />
+})();/// <reference path="../../utils.js" />
 
 // Simple calculation based on Levenshtein distance.
 (function () {
@@ -1085,7 +1118,7 @@ ko.templateRewriting = (function () {
             return findEditScriptFromEditDistanceMatrix(editDistanceMatrix, oldArray, newArray);
         }
     };
-})();﻿/// <reference path="compareArrays.js" />
+})();/// <reference path="compareArrays.js" />
 
 (function () {
     // Objective:
