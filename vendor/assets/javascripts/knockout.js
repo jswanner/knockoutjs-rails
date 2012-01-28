@@ -1,4 +1,4 @@
-// Knockout JavaScript library v1.04
+// Knockout JavaScript library v1.05
 // (c) 2010 Steven Sanderson - http://knockoutjs.com/
 // License: Ms-Pl (http://www.opensource.org/licenses/ms-pl.html)
 
@@ -7,10 +7,10 @@ var ko = window.ko = {};
 
 ko.utils = new (function () {
     var stringTrimRegex = /^(\s|\u00A0)+|(\s|\u00A0)+$/g;
-	
+    
     return {
-    	fieldsIncludedWithJsonPost: ['authenticity_token', /^__RequestVerificationToken(_.*)?$/],
-    	
+        fieldsIncludedWithJsonPost: ['authenticity_token', /^__RequestVerificationToken(_.*)?$/],
+        
         arrayForEach: function (array, action) {
             for (var i = 0, j = array.length; i < j; i++)
                 action(array[i]);
@@ -63,6 +63,11 @@ ko.utils = new (function () {
                 if (predicate(array[i]))
                     result.push(array[i]);
             return result;
+        },
+        
+        arrayPushAll: function (array, valuesToPush) {
+            for (var i = 0, j = valuesToPush.length; i < j; i++)
+                array.push(valuesToPush[i]);	
         },
 
         emptyDomNode: function (domNode) {
@@ -223,24 +228,24 @@ ko.utils = new (function () {
         },
         
         makeArray: function(arrayLikeObject) {
-        	var result = [];
-        	for (var i = arrayLikeObject.length - 1; i >= 0; i--){
-        		result.push(arrayLikeObject[i]);
-        	};
-        	return result;
+            var result = [];
+            for (var i = arrayLikeObject.length - 1; i >= 0; i--){
+                result.push(arrayLikeObject[i]);
+            };
+            return result;
         },
         
         getFormFields: function(form, fieldName) {
-        	var fields = ko.utils.makeArray(form.getElementsByTagName("INPUT")).concat(ko.utils.makeArray(form.getElementsByTagName("TEXTAREA")));
-        	var isMatchingField = (typeof fieldName == 'string') 
-        		? function(field) { return field.name === fieldName }
-        		: function(field) { return fieldName.test(field.name) }; // Treat fieldName as regex or object containing predicate
-        	var matches = [];
-        	for (var i = fields.length - 1; i >= 0; i--) {
-        		if (isMatchingField(fields[i]))
-        			matches.push(fields[i]);
-        	};
-        	return matches;
+            var fields = ko.utils.makeArray(form.getElementsByTagName("INPUT")).concat(ko.utils.makeArray(form.getElementsByTagName("TEXTAREA")));
+            var isMatchingField = (typeof fieldName == 'string') 
+                ? function(field) { return field.name === fieldName }
+                : function(field) { return fieldName.test(field.name) }; // Treat fieldName as regex or object containing predicate
+            var matches = [];
+            for (var i = fields.length - 1; i >= 0; i--) {
+                if (isMatchingField(fields[i]))
+                    matches.push(fields[i]);
+            };
+            return matches;
         },
 
         stringifyJson: function (data) {
@@ -250,22 +255,22 @@ ko.utils = new (function () {
         },
 
         postJson: function (urlOrForm, data, options) {
-        	options = options || {};
-        	var params = options.params || {};
-        	var includeFields = options.includeFields || this.fieldsIncludedWithJsonPost;
-        	var url = urlOrForm;
-        	
-        	// If we were given a form, use its 'action' URL and pick out any requested field values 	
-        	if((typeof urlOrForm == 'object') && (urlOrForm.tagName == "FORM")) {
-        		var originalForm = urlOrForm;
-        		url = originalForm.action;
-        		for (var i = includeFields.length - 1; i >= 0; i--) {
-        			var fields = ko.utils.getFormFields(originalForm, includeFields[i]);
-        			for (var j = fields.length - 1; j >= 0; j--)        				
-        				params[fields[j].name] = fields[j].value;
-        		}
-        	}        	
-        	
+            options = options || {};
+            var params = options.params || {};
+            var includeFields = options.includeFields || this.fieldsIncludedWithJsonPost;
+            var url = urlOrForm;
+            
+            // If we were given a form, use its 'action' URL and pick out any requested field values 	
+            if((typeof urlOrForm == 'object') && (urlOrForm.tagName == "FORM")) {
+                var originalForm = urlOrForm;
+                url = originalForm.action;
+                for (var i = includeFields.length - 1; i >= 0; i--) {
+                    var fields = ko.utils.getFormFields(originalForm, includeFields[i]);
+                    for (var j = fields.length - 1; j >= 0; j--)        				
+                        params[fields[j].name] = fields[j].value;
+                }
+            }        	
+            
             data = ko.utils.unwrapObservable(data);
             var form = document.createElement("FORM");
             form.style.display = "none";
@@ -614,7 +619,39 @@ ko.dependentObservable = function (evaluatorFunction, evaluatorFunctionTarget, o
     evaluate();
     return dependentObservable;
 };
-ko.dependentObservable.__ko_proto__ = ko.observable;/// <reference path="../utils.js" />
+ko.dependentObservable.__ko_proto__ = ko.observable;(function () {
+    // Normally, SELECT elements and their OPTIONs can only take value of type 'string' (because the values
+    // are stored on DOM attributes). ko.selectExtensions provides a way for SELECTs/OPTIONs to have values
+    // that are arbitrary objects. This is very convenient when implementing things like cascading dropdowns.
+    ko.selectExtensions = {
+        readValue : function(element) {
+            if (element.tagName == 'OPTION') {
+                var valueAttributeValue = element.getAttribute("value");
+                if (valueAttributeValue !== ko.bindingHandlers.options.optionValueDomDataKey)
+                    return valueAttributeValue;
+                return ko.utils.domData.get(element, ko.bindingHandlers.options.optionValueDomDataKey);
+            } else if (element.tagName == 'SELECT')
+                return element.selectedIndex >= 0 ? ko.selectExtensions.readValue(element.options[element.selectedIndex]) : undefined;
+            else
+                return element.value;
+        },
+        
+        writeValue: function(element, value) {
+            if (element.tagName == 'OPTION') {				
+                ko.utils.domData.set(element, ko.bindingHandlers.options.optionValueDomDataKey, value);
+                element.value = ko.bindingHandlers.options.optionValueDomDataKey;
+            } else if (element.tagName == 'SELECT') {
+                for (var i = element.options.length - 1; i >= 0; i--) {
+                    if (ko.selectExtensions.readValue(element.options[i]) == value) {
+                        element.selectedIndex = i;
+                        break;
+                    }
+                }
+            } else
+                element.value = value;
+        }
+    };
+})();/// <reference path="../utils.js" />
 
 ko.jsonExpressionRewriting = (function () {
     var restoreCapturedTokensRegex = /\[ko_token_(\d+)\]/g;
@@ -737,13 +774,19 @@ ko.jsonExpressionRewriting = (function () {
             function () {
                 var evaluatedBindings = (typeof bindings == "function") ? bindings() : bindings;
                 var parsedBindings = evaluatedBindings || parseBindingAttribute(node.getAttribute(bindingAttributeName), viewModel);
+                
+                // First run all the inits, so bindings can register for notification on changes
+                if (isFirstEvaluation) {
+	                for (var bindingKey in parsedBindings) {
+	                    if (ko.bindingHandlers[bindingKey] && typeof ko.bindingHandlers[bindingKey].init == "function")
+	                        invokeBindingHandler(ko.bindingHandlers[bindingKey].init, node, parsedBindings[bindingKey], parsedBindings, viewModel);
+	                }                	
+                }
+                
+                // ... then run all the updates, which might trigger changes even on the first evaluation
                 for (var bindingKey in parsedBindings) {
-                    if (ko.bindingHandlers[bindingKey]) {
-                        if (isFirstEvaluation && typeof ko.bindingHandlers[bindingKey].init == "function")
-                            invokeBindingHandler(ko.bindingHandlers[bindingKey].init, node, parsedBindings[bindingKey], parsedBindings, viewModel);
-                        if (typeof ko.bindingHandlers[bindingKey].update == "function")
+                    if (ko.bindingHandlers[bindingKey] && typeof ko.bindingHandlers[bindingKey].update == "function")
                             invokeBindingHandler(ko.bindingHandlers[bindingKey].update, node, parsedBindings[bindingKey], parsedBindings, viewModel);
-                    }
                 }
             },
             null,
@@ -817,15 +860,18 @@ ko.bindingHandlers.value = {
     init: function (element, value, allBindings) {
         var eventName = allBindings.valueUpdate || "change";
         if (ko.isWriteableObservable(value))
-            ko.utils.registerEventHandler(element, eventName, function () { value(this.value); });
+            ko.utils.registerEventHandler(element, eventName, function () { 
+                value(ko.selectExtensions.readValue(this)); 
+            });
         else if (allBindings._ko_property_writers && allBindings._ko_property_writers.value)
-            ko.utils.registerEventHandler(element, eventName, function () { allBindings._ko_property_writers.value(this.value); });
+            ko.utils.registerEventHandler(element, eventName, function () { 
+                allBindings._ko_property_writers.value(ko.selectExtensions.readValue(this)); 
+            });
     },
     update: function (element, value) {
         var newValue = ko.utils.unwrapObservable(value);
-
-        if (newValue != element.value) {
-            var applyValueAction = function () { element.value = newValue; };
+        if (newValue != ko.selectExtensions.readValue(element)) {
+            var applyValueAction = function () { ko.selectExtensions.writeValue(element, newValue); };
             applyValueAction();
 
             // Workaround for IE6 bug: It won't reliably apply values to SELECT nodes during the same execution thread
@@ -840,14 +886,13 @@ ko.bindingHandlers.value = {
 
 ko.bindingHandlers.options = {
     update: function (element, value, allBindings) {
-
         if (element.tagName != "SELECT")
-            throw new Error("values binding applies only to SELECT elements");
+            throw new Error("options binding applies only to SELECT elements");
 
         var previousSelectedValues = ko.utils.arrayMap(ko.utils.arrayFilter(element.childNodes, function (node) {
             return node.tagName && node.tagName == "OPTION" && node.selected;
         }), function (node) {
-            return node.value || node.innerText || node.textContent;
+            return ko.selectExtensions.readValue(node) || node.innerText || node.textContent;
         });
 
         value = ko.utils.unwrapObservable(value);
@@ -857,24 +902,37 @@ ko.bindingHandlers.options = {
         if (value) {
             if (typeof value.length != "number")
                 value = [value];
+            if (allBindings.optionsCaption) {
+                var option = document.createElement("OPTION");
+                option.innerHTML = allBindings.optionsCaption;
+                ko.selectExtensions.writeValue(option, undefined);
+                element.appendChild(option);
+            }
             for (var i = 0, j = value.length; i < j; i++) {
                 var option = document.createElement("OPTION");
-                var optionValue = typeof allBindings.options_value == "string" ? value[i][allBindings.options_value] : value[i];
-                option.value = optionValue.toString();
-                option.innerHTML = (typeof allBindings.options_text == "string" ? value[i][allBindings.options_text] : optionValue).toString();
+                var optionValue = typeof allBindings.optionsValue == "string" ? value[i][allBindings.optionsValue] : value[i];
+                if (typeof optionValue == 'object')
+                    ko.selectExtensions.writeValue(option, optionValue);
+                else
+                    option.value = optionValue.toString();
+                option.innerHTML = (typeof allBindings.optionsText == "string" ? value[i][allBindings.optionsText] : optionValue).toString();
                 element.appendChild(option);
             }
 
             // IE6 doesn't like us to assign selection to OPTION nodes before they're added to the document.
             // That's why we first added them without selection. Now it's time to set the selection.
             var newOptions = element.getElementsByTagName("OPTION");
+            var countSelectionsRetained = 0;
             for (var i = 0, j = newOptions.length; i < j; i++) {
-                if (ko.utils.arrayIndexOf(previousSelectedValues, newOptions[i].value) >= 0)
+                if (ko.utils.arrayIndexOf(previousSelectedValues, ko.selectExtensions.readValue(newOptions[i])) >= 0) {
                     ko.utils.setOptionNodeSelectionState(newOptions[i], true);
+                    countSelectionsRetained++;
+                }
             }
         }
     }
 };
+ko.bindingHandlers.options.optionValueDomDataKey = '__ko.bindingHandlers.options.optionValueDomData__';
 
 ko.bindingHandlers.selectedOptions = {
     getSelectedValuesFromSelectNode: function (selectNode) {
@@ -883,12 +941,11 @@ ko.bindingHandlers.selectedOptions = {
         for (var i = 0, j = nodes.length; i < j; i++) {
             var node = nodes[i];
             if ((node.tagName == "OPTION") && node.selected)
-                result.push(node.value);
+                result.push(ko.selectExtensions.readValue(node));
         }
         return result;
     },
     init: function (element, value, allBindings) {
-
         if (ko.isWriteableObservable(value))
             ko.utils.registerEventHandler(element, "change", function () { value(ko.bindingHandlers.selectedOptions.getSelectedValuesFromSelectNode(this)); });
         else if (allBindings._ko_property_writers && allBindings._ko_property_writers.value)
@@ -904,7 +961,7 @@ ko.bindingHandlers.selectedOptions = {
             for (var i = 0, j = nodes.length; i < j; i++) {
                 var node = nodes[i];
                 if (node.tagName == "OPTION")
-                    ko.utils.setOptionNodeSelectionState(node, ko.utils.arrayIndexOf(newValue, node.value) >= 0);
+                    ko.utils.setOptionNodeSelectionState(node, ko.utils.arrayIndexOf(newValue, ko.selectExtensions.readValue(node)) >= 0);
             }
         }
     }
@@ -1122,10 +1179,10 @@ ko.templateRewriting = (function () {
             if (typeof unwrappedArray.length == "undefined") // Coerce single value into array
                 unwrappedArray = [unwrappedArray];
 
-			// Filter out any entries marked as destroyed
-			var filteredArray = ko.utils.arrayFilter(unwrappedArray, function(item) { 
-				return options.includeDestroyed || !item._destroy;
-			});
+            // Filter out any entries marked as destroyed
+            var filteredArray = ko.utils.arrayFilter(unwrappedArray, function(item) { 
+                return options.includeDestroyed || !item._destroy;
+            });
 
             ko.utils.setDomNodeChildrenFromArrayMapping(targetNode, filteredArray, function (arrayValue) {
                 return executeTemplate(null, "ignoreTargetNode", template, arrayValue, options);
@@ -1240,6 +1297,24 @@ ko.templateRewriting = (function () {
     //   so that its children is again the concatenation of the mappings of the array elements, but don't re-map any array elements that we
     //   previously mapped - retain those nodes, and just insert/delete other ones
 
+	function mapNodeAndRefreshWhenChanged(mapping, valueToMap) {
+        // Map this array value inside a dependentObservable so we re-map when any dependency changes
+        var mappedNodes = [];
+        ko.dependentObservable(function() {
+            var newMappedNodes = mapping(valueToMap) || [];
+            
+            // On subsequent evaluations, just replace the previously-inserted DOM nodes
+            if (mappedNodes.length > 0)
+                ko.utils.replaceDomNodes(mappedNodes, newMappedNodes);
+            
+            // Replace the contents of the mappedNodes array, thereby updating the record
+            // of which nodes would be deleted if valueToMap was itself later removed
+            mappedNodes.splice(0, mappedNodes.length);
+            ko.utils.arrayPushAll(mappedNodes, newMappedNodes);
+        }, null, { disposeWhen: function() { return (mappedNodes.length == 0) || !ko.utils.domNodeIsAttachedToDocument(mappedNodes[0]) } });
+        return mappedNodes;
+	}
+
     ko.utils.setDomNodeChildrenFromArrayMapping = function (domNode, array, mapping, options) {
         // Compare the provided array against the previous one
         array = array || [];
@@ -1275,28 +1350,28 @@ ko.templateRewriting = (function () {
                     lastMappingResultIndex++;
                     break;
 
-                case "added":
-                    // Map this array value and insert the resulting nodes at the current insertion point
-                    var mappedNodes = mapping(editScript[i].value) || [];
-                    newMappingResult.push({ arrayEntry: editScript[i].value, domNodes: mappedNodes });
-                    for (var nodeIndex = 0, nodeIndexMax = mappedNodes.length; nodeIndex < nodeIndexMax; nodeIndex++) {
-                        var node = mappedNodes[nodeIndex];
-                        nodesAdded.push(node);
-                        if (insertAfterNode == null) {
-                            // Insert at beginning
-                            if (domNode.firstChild)
-                                domNode.insertBefore(node, domNode.firstChild);
+                case "added": 
+                	var mappedNodes = mapNodeAndRefreshWhenChanged(mapping, editScript[i].value);
+			        // On the first evaluation, insert the nodes at the current insertion point
+			        newMappingResult.push({ arrayEntry: editScript[i].value, domNodes: mappedNodes });
+			        for (var nodeIndex = 0, nodeIndexMax = mappedNodes.length; nodeIndex < nodeIndexMax; nodeIndex++) {
+			            var node = mappedNodes[nodeIndex];
+			            nodesAdded.push(node);
+			            if (insertAfterNode == null) {
+			                // Insert at beginning
+			                if (domNode.firstChild)
+			                    domNode.insertBefore(node, domNode.firstChild);
+			                else
+			                    domNode.appendChild(node);
+			            } else {
+			                // Insert after insertion point
+			                if (insertAfterNode.nextSibling)
+			                    domNode.insertBefore(node, insertAfterNode.nextSibling);
                             else
-                                domNode.appendChild(node);
-                        } else {
-                            // Insert after insertion point
-                            if (insertAfterNode.nextSibling)
-                                domNode.insertBefore(node, insertAfterNode.nextSibling);
-                            else
-                                domNode.appendChild(node);
-                        }
-                        insertAfterNode = node;
-                    }
+			                    domNode.appendChild(node);
+			            }
+			            insertAfterNode = node;
+			        }    		
                     break;
             }
         }

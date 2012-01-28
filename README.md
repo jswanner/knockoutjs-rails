@@ -20,7 +20,7 @@ Add the following directive to your Javascript manifest file (application.js):
 
 ## Versioning
 
-knockoutjs-rails 1.04 == Knockout.js 1.04
+knockoutjs-rails 1.05 == Knockout.js 1.05
 
 Every attempt is made to mirror the currently shipping Knockout.js version number wherever possible.
 The major and minor version numbers will always represent the Knockout.js version, but the patch level
