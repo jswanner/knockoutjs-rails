@@ -1,4 +1,4 @@
-// Knockout JavaScript library v1.02
+// Knockout JavaScript library v1.03
 // (c) 2010 Steven Sanderson - http://knockoutjs.com/
 // License: Ms-Pl (http://www.opensource.org/licenses/ms-pl.html)
 
@@ -63,11 +63,15 @@ ko.utils = new (function () {
             return result;
         },
 
-        setDomNodeChildren: function (domNode, childNodes) {
+        emptyDomNode: function (domNode) {
             while (domNode.firstChild) {
                 ko.utils.domData.cleanNodeAndDescendants(domNode.firstChild);
                 domNode.removeChild(domNode.firstChild);
             }
+        },
+
+        setDomNodeChildren: function (domNode, childNodes) {
+            ko.utils.emptyDomNode(domNode);
             if (childNodes) {
                 ko.utils.arrayForEach(childNodes, function (childNode) {
                     domNode.appendChild(childNode);
@@ -87,6 +91,14 @@ ko.utils = new (function () {
                     parent.removeChild(nodesToReplaceArray[i]);
                 }
             }
+        },
+
+        setOptionNodeSelectionState: function (optionNode, isSelected) {
+            // IE6 sometimes throws "unknown error" if you try to write to .selected directly, whereas Firefox struggles with setAttribute. Pick one based on browser.
+            if (navigator.userAgent.indexOf("MSIE 6") >= 0)
+                optionNode.setAttribute("selected", isSelected);
+            else
+                optionNode.selected = isSelected;
         },
 
         getElementsHavingAttribute: function (rootNode, attributeName) {
@@ -154,9 +166,15 @@ ko.utils = new (function () {
             if (!(element && element.nodeType))
                 throw new Error("element must be a DOM node when calling triggerEvent");
 
-            if (typeof element.fireEvent != "undefined")
+            if (typeof element.fireEvent != "undefined") {
+                // Unlike other browsers, IE doesn't change the checked state of checkboxes/radiobuttons when you trigger their "click" event
+                // so to make it consistent, we'll do it manually here
+                if (eventType == "click") {
+                    if ((element.tagName == "INPUT") && ((element.type.toLowerCase() == "checkbox") || (element.type.toLowerCase() == "radio")))
+                        element.checked = element.checked !== true;
+                }
                 element.fireEvent("on" + eventType);
-            else if (typeof document.createEvent == "function") {
+            } else if (typeof document.createEvent == "function") {
                 if (typeof element.dispatchEvent == "function") {
                     var eventCategory = (eventType == "click" ? "MouseEvents" : "HTMLEvents"); // Might need to account for other event names at some point
                     var event = document.createEvent(eventCategory);
@@ -758,6 +776,7 @@ ko.bindingHandlers.value = {
 
 ko.bindingHandlers.options = {
     update: function (element, value, allBindings) {
+
         if (element.tagName != "SELECT")
             throw new Error("values binding applies only to SELECT elements");
 
@@ -769,7 +788,8 @@ ko.bindingHandlers.options = {
 
         value = ko.utils.unwrapObservable(value);
         var selectedValue = element.value;
-        element.innerHTML = "";
+        ko.utils.emptyDomNode(element);
+
         if (value) {
             if (typeof value.length != "number")
                 value = [value];
@@ -780,12 +800,13 @@ ko.bindingHandlers.options = {
                 option.innerHTML = (typeof allBindings.options_text == "string" ? value[i][allBindings.options_text] : optionValue).toString();
                 element.appendChild(option);
             }
+
             // IE6 doesn't like us to assign selection to OPTION nodes before they're added to the document.
             // That's why we first added them without selection. Now it's time to set the selection.
             var newOptions = element.getElementsByTagName("OPTION");
             for (var i = 0, j = newOptions.length; i < j; i++) {
                 if (ko.utils.arrayIndexOf(previousSelectedValues, newOptions[i].value) >= 0)
-                    newOptions[i].selected = true;
+                    ko.utils.setOptionNodeSelectionState(newOptions[i], true);
             }
         }
     }
@@ -803,6 +824,7 @@ ko.bindingHandlers.selectedOptions = {
         return result;
     },
     init: function (element, value, allBindings) {
+
         if (ko.isWriteableObservable(value))
             ko.utils.registerEventHandler(element, "change", function () { value(ko.bindingHandlers.selectedOptions.getSelectedValuesFromSelectNode(this)); });
         else if (allBindings._ko_property_writers && allBindings._ko_property_writers.value)
@@ -818,7 +840,7 @@ ko.bindingHandlers.selectedOptions = {
             for (var i = 0, j = nodes.length; i < j; i++) {
                 var node = nodes[i];
                 if (node.tagName == "OPTION")
-                    node.selected = ko.utils.arrayIndexOf(newValue, node.value) >= 0;
+                    ko.utils.setOptionNodeSelectionState(node, ko.utils.arrayIndexOf(newValue, node.value) >= 0);
             }
         }
     }
@@ -844,10 +866,27 @@ ko.bindingHandlers.css = {
     }
 };
 
+ko.bindingHandlers.style = {
+    update: function (element, value) {
+        value = ko.utils.unwrapObservable(value || {});
+        for (var styleName in value) {
+            if (typeof styleName == "string") {
+                var styleValue = ko.utils.unwrapObservable(value[styleName]);
+                element.style[styleName] = styleValue || ""; // Empty string removes the value, whereas null/undefined have no effect
+            }
+        }
+    }
+};
+
 ko.bindingHandlers.uniqueName = {
     init: function (element, value) {
-        if (value)
+        if (value) {
             element.name = "ko_unique_" + (++ko.bindingHandlers.uniqueName.currentIndex);
+
+            // Workaround IE 6 issue - http://www.matts411.com/post/setting_the_name_attribute_in_ie_dom/
+            if (/MSIE 6/i.test(navigator.userAgent))
+                element.mergeAttributes(document.createElement("<INPUT name='" + element.name + "'/>"), false);
+        }
     }
 };
 ko.bindingHandlers.uniqueName.currentIndex = 0;
@@ -875,6 +914,10 @@ ko.bindingHandlers.checked = {
                 ko.utils.registerEventHandler(element, "click", updateHandler);
             }
         }
+
+        // IE 6 won't allow radio buttons to be selected unless they have a name
+        if ((element.type == "radio") && !element.name)
+            ko.bindingHandlers.uniqueName.init(element, true);
     },
     update: function (element, value) {
         value = ko.utils.unwrapObservable(value);
