@@ -25,7 +25,7 @@ application.js):
 
 ## Versioning
 
-knockoutjs-rails 2.3.0 == Knockout.js 2.3.0
+knockoutjs-rails 3.4.0 == Knockout.js 3.4.0
 
 Every attempt is made to mirror the currently shipping Knockout.js version number wherever possible.
 The major and minor version numbers will always represent the Knockout.js version, but the patch level
