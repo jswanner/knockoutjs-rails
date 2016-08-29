@@ -32,3 +32,6 @@ The major and minor version numbers will always represent the Knockout.js versio
 may differ should a fix to gem need to be pushed before Knockout.js ships an update to the library.
 
 When the versions differ, it will be noted in the README.
+
+ - Version 3.4.0.1 of knockoutjs-rails was released to declare compatibility
+   with Rails 5, while still using version 3.4.0 of Knockout.js.
