@@ -1,5 +1,5 @@
 module Knockoutjs
   module Rails
-    VERSION = "3.4.0.1"
+    VERSION = "3.5.0"
   end
 end
