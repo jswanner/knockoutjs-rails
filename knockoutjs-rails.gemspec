@@ -13,5 +13,5 @@ Gem::Specification.new do |s|
 
   s.files = Dir["{lib,vendor}/**/*"] + ["MIT-LICENSE", "README.md"]
 
-  s.add_runtime_dependency "railties", [">= 3.1", "< 6"]
+  s.add_runtime_dependency "railties", [">= 3.1"]
 end
